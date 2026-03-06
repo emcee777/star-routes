@@ -1,6 +1,7 @@
 // ============================================================
 // Star Routes - Station UI
-// Docked at station container: tabs for trading, hiring, repairs, shipyard
+// Docked at station: tabs with glow borders, system info,
+// smooth active tab highlighting
 // ============================================================
 
 import { Scene, GameObjects } from 'phaser';
@@ -32,12 +33,21 @@ export class StationUI extends GameObjects.Container {
 
         const tabWidth = GAME_WIDTH / tabs.length;
 
+        // Tab bar background
+        const tabBarBg = scene.add.rectangle(GAME_WIDTH / 2, tabY, GAME_WIDTH, 34, COLORS.panelBg, 0.95);
+        tabBarBg.setStrokeStyle(1, COLORS.panelBorder, 0.3);
+        this.add(tabBarBg);
+
         for (let i = 0; i < tabs.length; i++) {
             const tab = tabs[i];
             const container = scene.add.container(tabWidth * i + tabWidth / 2, tabY);
 
-            const bg = scene.add.rectangle(0, 0, tabWidth - 4, 30, COLORS.panelBg, 0.9);
-            bg.setStrokeStyle(1, COLORS.panelBorder, 0.6);
+            // Tab glow (behind, visible when active)
+            const glow = scene.add.rectangle(0, 0, tabWidth - 8, 28, COLORS.textHighlight, 0);
+            container.add(glow);
+
+            const bg = scene.add.rectangle(0, 0, tabWidth - 4, 30, COLORS.panelBg, 0);
+            bg.setStrokeStyle(1, COLORS.panelBorder, 0.4);
             container.add(bg);
 
             const text = scene.add.text(0, 0, tabLabels[tab], {
@@ -56,13 +66,15 @@ export class StationUI extends GameObjects.Container {
 
             container.on('pointerover', () => {
                 if (tab !== this.activeTab) {
-                    bg.setFillStyle(COLORS.panelBg, 1);
+                    bg.setStrokeStyle(1, COLORS.textHighlight, 0.3);
+                    glow.setAlpha(0.03);
                 }
             });
 
             container.on('pointerout', () => {
                 if (tab !== this.activeTab) {
-                    bg.setFillStyle(COLORS.panelBg, 0.9);
+                    bg.setStrokeStyle(1, COLORS.panelBorder, 0.4);
+                    glow.setAlpha(0);
                 }
             });
 
@@ -95,15 +107,20 @@ export class StationUI extends GameObjects.Container {
 
         // Update button visuals
         for (const [t, container] of this.tabButtons) {
-            const bg = container.getAt(0) as GameObjects.Rectangle;
-            const text = container.getAt(1) as GameObjects.Text;
+            const glow = container.getAt(0) as GameObjects.Rectangle;
+            const bg = container.getAt(1) as GameObjects.Rectangle;
+            const text = container.getAt(2) as GameObjects.Text;
 
             if (t === tab) {
                 bg.setStrokeStyle(2, COLORS.textHighlight, 0.8);
+                glow.setAlpha(0.06);
                 text.setColor('#' + COLORS.textHighlight.toString(16).padStart(6, '0'));
+                text.setFontStyle('bold');
             } else {
-                bg.setStrokeStyle(1, COLORS.panelBorder, 0.6);
+                bg.setStrokeStyle(1, COLORS.panelBorder, 0.4);
+                glow.setAlpha(0);
                 text.setColor('#' + COLORS.textSecondary.toString(16).padStart(6, '0'));
+                text.setFontStyle('normal');
             }
         }
 

@@ -10,7 +10,7 @@ import { StationScene } from './scenes/StationScene';
 import { TravelScene } from './scenes/TravelScene';
 import { GameOver } from './scenes/GameOver';
 import { VictoryScene } from './scenes/VictoryScene';
-import { AUTO, Game } from 'phaser';
+import { AUTO, Game, Scale } from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, COLORS } from './config/constants';
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -29,6 +29,15 @@ const config: Phaser.Types.Core.GameConfig = {
         GameOver,
         VictoryScene,
     ],
+    scale: {
+        mode: Scale.FIT,
+        autoCenter: Scale.CENTER_BOTH,
+    },
+    // Prefer WebGL for post-processing effects
+    render: {
+        antialias: true,
+        antialiasGL: true,
+    },
 };
 
 const StartGame = (parent: string) => {

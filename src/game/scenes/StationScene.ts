@@ -164,6 +164,16 @@ export class StationScene extends Scene {
     create(): void {
         this.cameras.main.setBackgroundColor(COLORS.background);
 
+        // Apply bloom post-processing if available
+        const renderer = this.renderer;
+        if (renderer && 'pipelines' in renderer) {
+            try {
+                this.cameras.main.setPostPipeline('BloomPipeline');
+            } catch (_e) {
+                // WebGL pipeline not available (Canvas mode)
+            }
+        }
+
         const currentSystem = this.getCurrentSystem();
 
         // Create UI components

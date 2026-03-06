@@ -1,6 +1,7 @@
 // ============================================================
 // Star Routes - Travel Scene
-// In transit: animated travel with random events, encounters
+// In transit: parallax streaking stars, engine glow, danger
+// vignette, glowing progress bar, dramatic event transitions
 // ============================================================
 
 import { Scene, GameObjects } from 'phaser';
@@ -21,6 +22,26 @@ import { ShipEntity } from '../entities/Ship';
 import { EventPanel } from '../ui/EventPanel';
 import { CombatUI } from '../ui/CombatUI';
 
+interface StreamStar {
+    graphic: GameObjects.Graphics;
+    x: number;
+    y: number;
+    speed: number;
+    length: number;
+    alpha: number;
+    layer: number;
+}
+
+interface EngineParticle {
+    graphic: GameObjects.Arc;
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    life: number;
+    maxLife: number;
+}
+
 export class TravelScene extends Scene {
     private gameState!: GameState;
     private route!: PlannedRoute;
@@ -40,11 +61,15 @@ export class TravelScene extends Scene {
     // Visual elements
     private shipEntity!: ShipEntity;
     private fromDot!: GameObjects.Arc;
+    private fromGlow!: GameObjects.Arc;
     private toDot!: GameObjects.Arc;
+    private toGlow!: GameObjects.Arc;
     private routeLine!: GameObjects.Graphics;
+    private progressBar!: GameObjects.Graphics;
     private progressText!: GameObjects.Text;
     private systemNameText!: GameObjects.Text;
     private statusText!: GameObjects.Text;
+    private dangerVignette!: GameObjects.Graphics;
 
     // UI overlays
     private eventPanel!: EventPanel;
@@ -55,8 +80,11 @@ export class TravelScene extends Scene {
     private combatState: CombatState | null = null;
     private travelComplete: boolean = false;
 
-    // Background stars
-    private bgStars: GameObjects.Arc[] = [];
+    // Background streaming stars
+    private streamStars: StreamStar[] = [];
+    private engineParticles: EngineParticle[] = [];
+    private animTimer: number = 0;
+    private currentDanger: number = 0;
 
     constructor() {
         super('TravelScene');
@@ -71,6 +99,14 @@ export class TravelScene extends Scene {
         this.isPaused = false;
         this.combatState = null;
         this.travelComplete = false;
+        this.streamStars = [];
+        this.engineParticles = [];
+        this.animTimer = 0;
+
+        // Calculate route danger
+        if (this.route.legs.length > 0) {
+            this.currentDanger = this.route.legs[0].dangerLevel;
+        }
 
         // Initialize systems
         this.economyEngine = new EconomyEngine();
@@ -88,37 +124,41 @@ export class TravelScene extends Scene {
     create(): void {
         this.cameras.main.setBackgroundColor(COLORS.background);
 
-        // Background starfield
-        for (let i = 0; i < 200; i++) {
-            const star = this.add.circle(
-                Math.random() * GAME_WIDTH,
-                Math.random() * GAME_HEIGHT,
-                0.5 + Math.random() * 1.5,
-                0xffffff,
-                0.1 + Math.random() * 0.5
-            );
-            this.bgStars.push(star);
-        }
+        // --- Streaming starfield (3 layers) ---
+        this.createStreamingStarfield();
 
-        // Route visualization
+        // --- Danger vignette (red edges when danger is high) ---
+        this.dangerVignette = this.add.graphics();
+        this.dangerVignette.setDepth(5);
+        this.drawDangerVignette(this.currentDanger);
+
+        // --- Route visualization ---
         this.routeLine = this.add.graphics();
-        this.routeLine.lineStyle(2, COLORS.routeNormal, 0.3);
-        this.routeLine.lineBetween(200, GAME_HEIGHT / 2, GAME_WIDTH - 200, GAME_HEIGHT / 2);
+        this.routeLine.setDepth(10);
+        this.drawRouteLine(0);
 
-        // Draw traveled portion
-        this.routeLine.lineStyle(2, COLORS.textHighlight, 0.6);
-        this.routeLine.lineBetween(200, GAME_HEIGHT / 2, 200, GAME_HEIGHT / 2);
+        // --- Glowing progress bar ---
+        this.progressBar = this.add.graphics();
+        this.progressBar.setDepth(10);
 
-        // From/To dots
-        this.fromDot = this.add.circle(200, GAME_HEIGHT / 2, 8, COLORS.positive, 0.8);
-        this.fromDot.setStrokeStyle(2, COLORS.positive);
+        // From dot with glow
+        this.fromGlow = this.add.circle(200, GAME_HEIGHT / 2, 14, COLORS.positive, 0.08);
+        this.fromGlow.setDepth(9);
+        this.fromDot = this.add.circle(200, GAME_HEIGHT / 2, 6, COLORS.positive, 0.9);
+        this.fromDot.setStrokeStyle(1.5, COLORS.positive, 0.7);
+        this.fromDot.setDepth(11);
 
-        this.toDot = this.add.circle(GAME_WIDTH - 200, GAME_HEIGHT / 2, 8, COLORS.textHighlight, 0.8);
-        this.toDot.setStrokeStyle(2, COLORS.textHighlight);
+        // To dot with glow
+        this.toGlow = this.add.circle(GAME_WIDTH - 200, GAME_HEIGHT / 2, 14, COLORS.textHighlight, 0.08);
+        this.toGlow.setDepth(9);
+        this.toDot = this.add.circle(GAME_WIDTH - 200, GAME_HEIGHT / 2, 6, COLORS.textHighlight, 0.9);
+        this.toDot.setStrokeStyle(1.5, COLORS.textHighlight, 0.7);
+        this.toDot.setDepth(11);
 
         // Ship
         this.shipEntity = new ShipEntity(this, 200, GAME_HEIGHT / 2 - 30, this.gameState.player.ship);
         this.shipEntity.setMoving(true, -Math.PI / 2);
+        this.shipEntity.setDepth(20);
 
         // System names
         const fromSystem = this.getSystem(this.route.path[0]);
@@ -127,45 +167,47 @@ export class TravelScene extends Scene {
         this.add.text(200, GAME_HEIGHT / 2 + 30, fromSystem?.name ?? '???', {
             fontSize: '12px', fontFamily: 'monospace',
             color: '#' + COLORS.textSecondary.toString(16).padStart(6, '0'),
-        }).setOrigin(0.5, 0);
+        }).setOrigin(0.5, 0).setDepth(11);
 
         this.add.text(GAME_WIDTH - 200, GAME_HEIGHT / 2 + 30, toSystem?.name ?? '???', {
             fontSize: '12px', fontFamily: 'monospace',
             color: '#' + COLORS.textHighlight.toString(16).padStart(6, '0'),
-        }).setOrigin(0.5, 0);
+        }).setOrigin(0.5, 0).setDepth(11);
 
         // Progress text
         this.progressText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 60, '', {
             fontSize: '14px', fontFamily: 'monospace',
             color: '#' + COLORS.textPrimary.toString(16).padStart(6, '0'),
-        }).setOrigin(0.5, 0);
+        }).setOrigin(0.5, 0).setDepth(11);
 
         // System name being traveled to
-        this.systemNameText = this.add.text(GAME_WIDTH / 2, 100, 'IN TRANSIT', {
-            fontSize: '20px', fontFamily: 'monospace', fontStyle: 'bold',
+        this.systemNameText = this.add.text(GAME_WIDTH / 2, 80, 'IN TRANSIT', {
+            fontSize: '22px', fontFamily: 'monospace', fontStyle: 'bold',
             color: '#' + COLORS.textHighlight.toString(16).padStart(6, '0'),
-        }).setOrigin(0.5, 0.5);
+        }).setOrigin(0.5, 0.5).setDepth(11);
 
         // Status text
-        this.statusText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 80, '', {
+        this.statusText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 60, '', {
             fontSize: '12px', fontFamily: 'monospace',
             color: '#' + COLORS.textSecondary.toString(16).padStart(6, '0'),
             align: 'center',
-        }).setOrigin(0.5, 0.5);
+        }).setOrigin(0.5, 0.5).setDepth(11);
 
-        // Ship stats display
-        this.add.text(20, 20, `Hull: ${this.gameState.player.ship.hull}/${this.gameState.player.ship.maxHull}`, {
+        // Ship stats display with glowing bars
+        const statsX = 20;
+        const statsY = 20;
+        this.add.text(statsX, statsY, `Hull: ${this.gameState.player.ship.hull}/${this.gameState.player.ship.maxHull}`, {
             fontSize: '11px', fontFamily: 'monospace',
             color: '#' + COLORS.hullBar.toString(16).padStart(6, '0'),
-        });
-        this.add.text(20, 38, `Fuel: ${this.gameState.player.ship.fuel}/${this.gameState.player.ship.maxFuel}`, {
+        }).setDepth(11);
+        this.add.text(statsX, statsY + 18, `Fuel: ${this.gameState.player.ship.fuel}/${this.gameState.player.ship.maxFuel}`, {
             fontSize: '11px', fontFamily: 'monospace',
             color: '#' + COLORS.fuelBar.toString(16).padStart(6, '0'),
-        });
-        this.add.text(GAME_WIDTH - 20, 20, this.timeSystem.formatTime(), {
+        }).setDepth(11);
+        this.add.text(GAME_WIDTH - 20, statsY, this.timeSystem.formatTime(), {
             fontSize: '11px', fontFamily: 'monospace',
             color: '#' + COLORS.textSecondary.toString(16).padStart(6, '0'),
-        }).setOrigin(1, 0);
+        }).setOrigin(1, 0).setDepth(11);
 
         // Create event panel (hidden)
         this.eventPanel = new EventPanel(this);
@@ -180,14 +222,166 @@ export class TravelScene extends Scene {
         this.combatUI.setContinueHandler(() => this.handleCombatEnd());
     }
 
+    private createStreamingStarfield(): void {
+        const layerConfigs = [
+            { count: 60, minSpeed: 60, maxSpeed: 120, minLength: 3, maxLength: 8, alpha: 0.15 },    // far
+            { count: 40, minSpeed: 140, maxSpeed: 250, minLength: 6, maxLength: 15, alpha: 0.3 },    // mid
+            { count: 20, minSpeed: 280, maxSpeed: 450, minLength: 12, maxLength: 30, alpha: 0.5 },   // near
+        ];
+
+        for (let layer = 0; layer < layerConfigs.length; layer++) {
+            const cfg = layerConfigs[layer];
+            for (let i = 0; i < cfg.count; i++) {
+                const graphic = this.add.graphics();
+                graphic.setDepth(1 + layer);
+
+                const star: StreamStar = {
+                    graphic,
+                    x: Math.random() * GAME_WIDTH,
+                    y: Math.random() * GAME_HEIGHT,
+                    speed: cfg.minSpeed + Math.random() * (cfg.maxSpeed - cfg.minSpeed),
+                    length: cfg.minLength + Math.random() * (cfg.maxLength - cfg.minLength),
+                    alpha: cfg.alpha * (0.5 + Math.random() * 0.5),
+                    layer,
+                };
+                this.streamStars.push(star);
+            }
+        }
+    }
+
+    private drawRouteLine(progress: number): void {
+        this.routeLine.clear();
+
+        const routeWidth = GAME_WIDTH - 400;
+        const routeY = GAME_HEIGHT / 2;
+
+        // Base route line (dim)
+        this.routeLine.lineStyle(2, COLORS.routeNormal, 0.2);
+        this.routeLine.lineBetween(200, routeY, GAME_WIDTH - 200, routeY);
+
+        // Traveled portion — bright glow + core
+        const traveledX = 200 + routeWidth * progress;
+
+        if (progress > 0.001) {
+            // Glow
+            this.routeLine.lineStyle(6, COLORS.textHighlight, 0.1);
+            this.routeLine.lineBetween(200, routeY, traveledX, routeY);
+            // Core
+            this.routeLine.lineStyle(2, COLORS.textHighlight, 0.7);
+            this.routeLine.lineBetween(200, routeY, traveledX, routeY);
+        }
+    }
+
+    private drawDangerVignette(danger: number): void {
+        this.dangerVignette.clear();
+
+        if (danger < 0.2) return;
+
+        const intensity = Math.min((danger - 0.2) * 0.8, 0.4);
+        const edgeWidth = 60 + danger * 40;
+
+        // Left edge
+        for (let i = 0; i < edgeWidth; i++) {
+            const a = intensity * (1 - i / edgeWidth) * 0.3;
+            this.dangerVignette.lineStyle(1, COLORS.negative, a);
+            this.dangerVignette.lineBetween(i, 0, i, GAME_HEIGHT);
+        }
+        // Right edge
+        for (let i = 0; i < edgeWidth; i++) {
+            const a = intensity * (1 - i / edgeWidth) * 0.3;
+            this.dangerVignette.lineStyle(1, COLORS.negative, a);
+            this.dangerVignette.lineBetween(GAME_WIDTH - i, 0, GAME_WIDTH - i, GAME_HEIGHT);
+        }
+        // Top edge
+        for (let i = 0; i < edgeWidth * 0.5; i++) {
+            const a = intensity * (1 - i / (edgeWidth * 0.5)) * 0.2;
+            this.dangerVignette.lineStyle(1, COLORS.negative, a);
+            this.dangerVignette.lineBetween(0, i, GAME_WIDTH, i);
+        }
+        // Bottom edge
+        for (let i = 0; i < edgeWidth * 0.5; i++) {
+            const a = intensity * (1 - i / (edgeWidth * 0.5)) * 0.2;
+            this.dangerVignette.lineStyle(1, COLORS.negative, a);
+            this.dangerVignette.lineBetween(0, GAME_HEIGHT - i, GAME_WIDTH, GAME_HEIGHT - i);
+        }
+    }
+
+    private spawnEngineParticle(shipX: number, shipY: number): void {
+        if (this.engineParticles.length > 30) return;
+
+        const particle = this.add.circle(
+            shipX + (Math.random() - 0.5) * 4,
+            shipY + 12 + Math.random() * 4,
+            1 + Math.random() * 2,
+            COLORS.fuelBar,
+            0.6
+        );
+        particle.setDepth(19);
+
+        this.engineParticles.push({
+            graphic: particle,
+            x: particle.x,
+            y: particle.y,
+            vx: (Math.random() - 0.5) * 15,
+            vy: 30 + Math.random() * 60,
+            life: 0,
+            maxLife: 0.4 + Math.random() * 0.4,
+        });
+    }
+
     update(_time: number, delta: number): void {
         if (this.isPaused || this.travelComplete) return;
 
-        // Animate stars
-        for (const star of this.bgStars) {
-            star.x -= delta * 0.05;
-            if (star.x < 0) star.x = GAME_WIDTH;
+        const dt = delta * 0.001;
+        this.animTimer += dt;
+
+        // --- Animate streaming stars ---
+        for (const star of this.streamStars) {
+            star.x -= star.speed * dt;
+
+            if (star.x < -star.length * 2) {
+                star.x = GAME_WIDTH + star.length;
+                star.y = Math.random() * GAME_HEIGHT;
+            }
+
+            star.graphic.clear();
+            const flicker = star.alpha * (0.7 + Math.sin(this.animTimer * 3 + star.y * 0.1) * 0.3);
+            star.graphic.lineStyle(1, 0xffffff, flicker);
+            star.graphic.lineBetween(star.x, star.y, star.x + star.length, star.y);
         }
+
+        // --- Engine particles ---
+        const shipX = this.shipEntity.x;
+        const shipY = this.shipEntity.y + 30; // Offset for engine position
+
+        if (Math.random() < 0.4) {
+            this.spawnEngineParticle(shipX, shipY);
+        }
+
+        for (let i = this.engineParticles.length - 1; i >= 0; i--) {
+            const p = this.engineParticles[i];
+            p.life += dt;
+
+            if (p.life >= p.maxLife) {
+                p.graphic.destroy();
+                this.engineParticles.splice(i, 1);
+                continue;
+            }
+
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.graphic.setPosition(p.x, p.y);
+
+            const fadeOut = 1 - p.life / p.maxLife;
+            p.graphic.setAlpha(fadeOut * 0.6);
+            p.graphic.setScale(fadeOut);
+        }
+
+        // --- Pulse destination glow ---
+        const toGlowPulse = 0.06 + Math.sin(this.animTimer * 2) * 0.04;
+        this.toGlow.setAlpha(toGlowPulse);
+        const fromGlowPulse = 0.04 + Math.sin(this.animTimer * 1.5) * 0.02;
+        this.fromGlow.setAlpha(fromGlowPulse);
 
         // Update ship animation
         this.shipEntity.update(_time, delta);
@@ -209,6 +403,10 @@ export class TravelScene extends Scene {
         const leg = this.route.legs[this.currentLeg];
         this.legProgress++;
         this.timeSystem.tick();
+
+        // Update current danger for vignette
+        this.currentDanger = leg.dangerLevel;
+        this.drawDangerVignette(this.currentDanger);
 
         // Update economy
         this.economyEngine.update(this.gameState.galaxy, this.gameState.activeEvents);
@@ -252,12 +450,8 @@ export class TravelScene extends Scene {
         const shipX = 200 + (GAME_WIDTH - 400) * overallProgress;
         this.shipEntity.setPosition(shipX, GAME_HEIGHT / 2 - 30);
 
-        // Update progress line
-        this.routeLine.clear();
-        this.routeLine.lineStyle(2, COLORS.routeNormal, 0.3);
-        this.routeLine.lineBetween(200, GAME_HEIGHT / 2, GAME_WIDTH - 200, GAME_HEIGHT / 2);
-        this.routeLine.lineStyle(2, COLORS.textHighlight, 0.6);
-        this.routeLine.lineBetween(200, GAME_HEIGHT / 2, shipX, GAME_HEIGHT / 2);
+        // Update route line with progress
+        this.drawRouteLine(overallProgress);
 
         this.progressText.setText(
             `Jump ${this.currentLeg + 1}/${this.route.legs.length} | ` +
@@ -474,6 +668,9 @@ export class TravelScene extends Scene {
 
         this.systemNameText.setText(`ARRIVED: ${destSystem?.name ?? '???'}`);
         this.statusText.setText('Docking...');
+
+        // Remove danger vignette on arrival
+        this.dangerVignette.clear();
 
         // Check victory conditions
         if (this.gameState.player.credits >= VICTORY_CREDITS &&

@@ -655,7 +655,7 @@ export const EVENTS: GameEventDef[] = [
             {
                 text: 'Decline and report them',
                 outcomes: [
-                    { probability: 0.7, text: 'The authorities are grateful for the tip.', effects: { credits: 500, reputation: { factionId: 'hegemony', amount: 5 }, reputation: { factionId: 'syndicate', amount: -5 } } },
+                    { probability: 0.7, text: 'The authorities are grateful for the tip.', effects: { credits: 500, reputation: { factionId: 'hegemony', amount: 5 } } },
                     { probability: 0.3, text: 'The smuggler escapes before authorities arrive.', effects: {} },
                 ],
             },
@@ -690,7 +690,7 @@ export const EVENTS: GameEventDef[] = [
             {
                 text: 'Turn it in to authorities',
                 outcomes: [
-                    { probability: 1.0, text: 'The authorities pay a finder\'s fee.', effects: { credits: 800, reputation: { factionId: 'hegemony', amount: 5 }, reputation: { factionId: 'syndicate', amount: -3 } } },
+                    { probability: 1.0, text: 'The authorities pay a finder\'s fee.', effects: { credits: 800, reputation: { factionId: 'hegemony', amount: 5 } } },
                 ],
             },
         ],

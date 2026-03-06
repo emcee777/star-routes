@@ -224,7 +224,7 @@ function addConnection(
 
 function ensureConnected(
     systems: StarSystemData[],
-    distances: { from: number; to: number; dist: number }[],
+    _distances: { from: number; to: number; dist: number }[],
     counts: number[]
 ): void {
     // BFS to find connected components

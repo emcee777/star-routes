@@ -392,6 +392,11 @@ export class TradingPanel extends GameObjects.Container {
         this.messageText.setText(text);
         this.messageText.setColor(color);
 
+        // Golden flash on successful trade
+        if (positive) {
+            this.scene.cameras.main.flash(200, 255, 215, 0, false);
+        }
+
         // Cancel previous timer
         if (this.messageTimer) {
             this.messageTimer.destroy();

@@ -8,6 +8,7 @@ import { Scene, GameObjects } from 'phaser';
 import { PlayerState } from '../types';
 import { COLORS, GAME_WIDTH } from '../config/constants';
 import { TimeSystem } from '../systems/TimeSystem';
+import { AudioManager } from '../audio/AudioManager';
 
 export class HUD extends GameObjects.Container {
     private creditsText: GameObjects.Text;
@@ -72,6 +73,25 @@ export class HUD extends GameObjects.Container {
             color: '#' + COLORS.textPrimary.toString(16).padStart(6, '0'),
         }).setOrigin(0, 0.5);
         this.add(this.locationText);
+
+        // Mute toggle button
+        const muteBtn = scene.add.text(GAME_WIDTH - 110, panelHeight / 2, AudioManager.isMuted ? '[MUTE]' : '[SND]', {
+            fontSize: '11px',
+            fontFamily: 'monospace',
+            color: '#' + COLORS.textSecondary.toString(16).padStart(6, '0'),
+        }).setOrigin(0.5, 0.5).setInteractive();
+        muteBtn.on('pointerdown', () => {
+            const muted = AudioManager.toggleMute();
+            muteBtn.setText(muted ? '[MUTE]' : '[SND]');
+            muteBtn.setColor(muted
+                ? '#' + COLORS.negative.toString(16).padStart(6, '0')
+                : '#' + COLORS.textSecondary.toString(16).padStart(6, '0'));
+        });
+        muteBtn.on('pointerover', () => muteBtn.setColor('#' + COLORS.textHighlight.toString(16).padStart(6, '0')));
+        muteBtn.on('pointerout', () => muteBtn.setColor(AudioManager.isMuted
+            ? '#' + COLORS.negative.toString(16).padStart(6, '0')
+            : '#' + COLORS.textSecondary.toString(16).padStart(6, '0')));
+        this.add(muteBtn);
 
         // Time
         this.timeText = scene.add.text(GAME_WIDTH - 10, panelHeight / 2, 'Day 1', {

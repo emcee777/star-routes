@@ -90,6 +90,8 @@ class AudioManagerClass {
     private sfxVolume: number = 0.7;
     private musicVolume: number = 0.5;
     private initialized: boolean = false;
+    private muted: boolean = false;
+    private preMuteVolume: number = 0.7;
 
     init(): void {
         if (this.initialized) return;
@@ -166,9 +168,26 @@ class AudioManagerClass {
         this.sounds.forEach(entry => entry.howl?.stop());
     }
 
+    toggleMute(): boolean {
+        this.muted = !this.muted;
+        if (this.muted) {
+            this.preMuteVolume = this.masterVolume;
+            Howler.volume(0);
+        } else {
+            Howler.volume(this.preMuteVolume);
+        }
+        return this.muted;
+    }
+
+    get isMuted(): boolean {
+        return this.muted;
+    }
+
     setMasterVolume(v: number): void {
         this.masterVolume = Math.max(0, Math.min(1, v));
-        Howler.volume(this.masterVolume);
+        if (!this.muted) {
+            Howler.volume(this.masterVolume);
+        }
     }
 
     setSFXVolume(v: number): void {

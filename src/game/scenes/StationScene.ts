@@ -392,14 +392,24 @@ export class StationScene extends Scene {
         this.timeSystem.saveToState(this.gameState);
         this.gameState.economyHistory = this.economyEngine.economyHistory;
 
-        // Warp sound + fade transition to travel scene
+        // Warp jump: horizontal stretch tween + flash + fade
         AudioManager.play('warpJump');
-        this.cameras.main.fadeOut(400, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-            this.scene.start('TravelScene', {
-                gameState: this.gameState,
-                route,
-            });
+        this.cameras.main.flash(200, 200, 220, 255, false);
+        this.tweens.add({
+            targets: this.cameras.main,
+            zoom: 1.15,
+            duration: 250,
+            ease: 'Quad.easeIn',
+            onComplete: () => {
+                this.cameras.main.fadeOut(300, 255, 255, 255);
+                this.cameras.main.once('camerafadeoutcomplete', () => {
+                    this.cameras.main.setZoom(1);
+                    this.scene.start('TravelScene', {
+                        gameState: this.gameState,
+                        route,
+                    });
+                });
+            },
         });
     }
 

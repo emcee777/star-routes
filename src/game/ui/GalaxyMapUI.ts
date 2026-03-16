@@ -10,6 +10,7 @@ import { COLORS, GAME_WIDTH, GAME_HEIGHT, GALAXY_MAP_PADDING } from '../config/c
 import { FACTION_MAP } from '../config/faction-data';
 import { StarSystemEntity } from '../entities/StarSystem';
 import { PlannedRoute } from '../systems/NavigationSystem';
+import { AudioManager } from '../audio/AudioManager';
 
 interface BgStar {
     graphic: GameObjects.Arc;
@@ -117,6 +118,7 @@ export class GalaxyMapUI extends GameObjects.Container {
             });
 
             entity.on('pointerdown', () => {
+                AudioManager.play('navSelect');
                 if (this.onSystemSelect) {
                     this.onSystemSelect(system.id);
                 }

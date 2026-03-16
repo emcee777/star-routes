@@ -21,6 +21,7 @@ import { ReputationSystem } from '../systems/ReputationSystem';
 import { ShipEntity } from '../entities/Ship';
 import { EventPanel } from '../ui/EventPanel';
 import { CombatUI } from '../ui/CombatUI';
+import { AudioManager } from '../audio/AudioManager';
 
 interface StreamStar {
     graphic: GameObjects.Graphics;
@@ -123,6 +124,12 @@ export class TravelScene extends Scene {
 
     create(): void {
         this.cameras.main.setBackgroundColor(COLORS.background);
+
+        // Fade in (warp arrival effect)
+        this.cameras.main.fadeIn(500, 255, 255, 255);
+
+        // Engine thrust audio
+        AudioManager.play('engineThrust');
 
         // --- Streaming starfield (3 layers) ---
         this.createStreamingStarfield();
@@ -433,6 +440,7 @@ export class TravelScene extends Scene {
 
         if (event) {
             this.isPaused = true;
+            AudioManager.play('eventTrigger');
             const choices = this.eventSystem.getAvailableChoices(event, this.gameState.player);
             this.eventPanel.showEvent(event, choices);
             this.eventPanel.setVisible(true);
@@ -539,7 +547,11 @@ export class TravelScene extends Scene {
         } else {
             // Check if player died from event
             if (this.gameState.player.ship.hull <= 0) {
-                this.scene.start('GameOver', { gameState: this.gameState });
+                AudioManager.stop('engineThrust');
+                this.cameras.main.fadeOut(800, 20, 0, 0);
+                this.cameras.main.once('camerafadeoutcomplete', () => {
+                    this.scene.start('GameOver', { gameState: this.gameState });
+                });
                 return;
             }
             this.isPaused = false;
@@ -565,6 +577,8 @@ export class TravelScene extends Scene {
     private handleCombatAction(action: import('../systems/CombatSystem').CombatAction): void {
         if (!this.combatState) return;
 
+        const prevPlayerHull = this.gameState.player.ship.hull;
+
         const crewCombat = this.crewManager.getSkillBonus(this.gameState.player.crew, 'combat');
         const crewPilot = this.crewManager.getSkillBonus(this.gameState.player.crew, 'piloting');
         const crewDiplomacy = this.crewManager.getSkillBonus(this.gameState.player.crew, 'diplomacy');
@@ -577,6 +591,35 @@ export class TravelScene extends Scene {
 
         // Apply damage to ship
         this.combatSystem.applyCombatResult(this.combatState, this.gameState.player.ship);
+
+        // --- Combat screen effects ---
+        const lastLog = this.combatState.log[this.combatState.log.length - 1] ?? '';
+        const damageTaken = prevPlayerHull - this.gameState.player.ship.hull;
+
+        if (action === 'attack') {
+            if (lastLog.includes('miss') || lastLog.includes('blocks') || lastLog.includes('dodge')) {
+                // Miss — whoosh
+                AudioManager.play('combatMiss');
+            } else {
+                // Hit landed
+                AudioManager.play('combatHit');
+                // Brief flash on enemy panel
+                this.cameras.main.flash(120, 255, 60, 0, false);
+            }
+        }
+
+        if (damageTaken > 0) {
+            // Screen shake proportional to damage
+            const intensity = Math.min(damageTaken * 0.002, 0.012);
+            this.cameras.main.shake(150, intensity);
+            AudioManager.play('combatHit');
+        }
+
+        // Shield block flash — blue
+        if (lastLog.toLowerCase().includes('shield')) {
+            this.cameras.main.flash(150, 0, 80, 255, false);
+            AudioManager.play('shieldBlock');
+        }
 
         this.combatUI.updateDisplay(
             this.combatState,
@@ -620,9 +663,15 @@ export class TravelScene extends Scene {
 
             this.crewManager.adjustMorale(this.gameState.player.crew, 5);
         } else if (this.combatState.result === 'defeat') {
-            this.scene.start('GameOver', { gameState: this.gameState });
+            AudioManager.stop('engineThrust');
+            this.cameras.main.shake(500, 0.015);
+            this.cameras.main.fadeOut(800, 20, 0, 0);
+            this.cameras.main.once('camerafadeoutcomplete', () => {
+                this.scene.start('GameOver', { gameState: this.gameState });
+            });
             return;
         } else if (this.combatState.result === 'fled') {
+            AudioManager.play('combatMiss');
             this.gameState.eventLog.push({
                 time: this.timeSystem.currentTime,
                 type: 'combat',
@@ -634,7 +683,11 @@ export class TravelScene extends Scene {
 
         // Check if player ship destroyed
         if (this.gameState.player.ship.hull <= 0) {
-            this.scene.start('GameOver', { gameState: this.gameState });
+            AudioManager.stop('engineThrust');
+            this.cameras.main.fadeOut(800, 20, 0, 0);
+            this.cameras.main.once('camerafadeoutcomplete', () => {
+                this.scene.start('GameOver', { gameState: this.gameState });
+            });
             return;
         }
 
@@ -672,22 +725,32 @@ export class TravelScene extends Scene {
         // Remove danger vignette on arrival
         this.dangerVignette.clear();
 
+        // Stop engine audio on docking
+        AudioManager.stop('engineThrust');
+        AudioManager.play('dockStation');
+
         // Check victory conditions
         if (this.gameState.player.credits >= VICTORY_CREDITS &&
             this.gameState.player.systemsVisited.length >= VICTORY_SYSTEMS &&
             this.gameState.player.totalTrades >= VICTORY_TRADES) {
-            this.time.delayedCall(1500, () => {
-                this.scene.start('VictoryScene', { gameState: this.gameState });
+            this.time.delayedCall(1200, () => {
+                this.cameras.main.fadeOut(600, 255, 255, 255);
+                this.cameras.main.once('camerafadeoutcomplete', () => {
+                    this.scene.start('VictoryScene', { gameState: this.gameState });
+                });
             });
             return;
         }
 
-        // Save and transition to station
+        // Save and transition to station (docking animation: fade)
         this.timeSystem.saveToState(this.gameState);
         this.gameState.economyHistory = this.economyEngine.economyHistory;
 
-        this.time.delayedCall(1500, () => {
-            this.scene.start('StationScene', { gameState: this.gameState });
+        this.time.delayedCall(1200, () => {
+            this.cameras.main.fadeOut(400, 0, 0, 0);
+            this.cameras.main.once('camerafadeoutcomplete', () => {
+                this.scene.start('StationScene', { gameState: this.gameState });
+            });
         });
     }
 

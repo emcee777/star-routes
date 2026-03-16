@@ -20,6 +20,9 @@ export class CombatUI extends GameObjects.Container {
     private actionButtons: GameObjects.Container[] = [];
     private onAction: ((action: CombatAction) => void) | null = null;
     private onContinue: (() => void) | null = null;
+    // Track previous values for animated bar transitions
+    private prevEnemyHull: number = 100;
+    private prevPlayerHull: number = 100;
 
     constructor(scene: Scene) {
         super(scene, 0, 0);
@@ -138,23 +141,80 @@ export class CombatUI extends GameObjects.Container {
 
     updateDisplay(combat: CombatState, playerMaxHull: number, playerMaxShield: number): void {
         const barWidth = 200;
+        const tweens = this.scene.tweens;
 
         this.enemyNameText.setText(combat.enemyName);
         this.roundText.setText(`Round ${combat.round}`);
 
-        // Enemy bars
+        // --- Enemy bars with animated transition ---
         const eHullPct = Math.max(0, combat.enemyHull / 100);
-        this.enemyHullBar.setSize(barWidth * eHullPct, 10);
+        const targetEnemyW = barWidth * eHullPct;
+
+        // Flash enemy hull bar orange when hit
+        if (combat.enemyHull < this.prevEnemyHull) {
+            tweens.killTweensOf(this.enemyHullBar);
+            this.enemyHullBar.setFillStyle(0xff8800);
+            tweens.add({
+                targets: this.enemyHullBar,
+                width: targetEnemyW,
+                duration: 200,
+                ease: 'Linear',
+                onComplete: () => {
+                    this.enemyHullBar.setFillStyle(COLORS.negative);
+                },
+            });
+        } else {
+            this.enemyHullBar.setSize(targetEnemyW, 10);
+        }
+        this.prevEnemyHull = combat.enemyHull;
 
         const eShieldPct = Math.max(0, combat.enemyShield / 50);
-        this.enemyShieldBar.setSize(barWidth * Math.min(1, eShieldPct), 8);
+        tweens.killTweensOf(this.enemyShieldBar);
+        tweens.add({
+            targets: this.enemyShieldBar,
+            width: barWidth * Math.min(1, eShieldPct),
+            duration: 150,
+            ease: 'Linear',
+        });
 
-        // Player bars
+        // --- Player bars with animated transition ---
         const pHullPct = Math.max(0, combat.playerHull / playerMaxHull);
-        this.playerHullBar.setSize(barWidth * pHullPct, 10);
+        const targetPlayerW = barWidth * pHullPct;
+
+        // Flash player hull bar bright red when taking damage
+        if (combat.playerHull < this.prevPlayerHull) {
+            tweens.killTweensOf(this.playerHullBar);
+            this.playerHullBar.setFillStyle(0xff2222);
+            tweens.add({
+                targets: this.playerHullBar,
+                width: targetPlayerW,
+                duration: 200,
+                ease: 'Linear',
+                onComplete: () => {
+                    this.playerHullBar.setFillStyle(COLORS.hullBar);
+                },
+            });
+            // Brief log text shake to indicate impact
+            tweens.add({
+                targets: this.logText,
+                x: this.logText.x + 4,
+                duration: 50,
+                yoyo: true,
+                repeat: 2,
+            });
+        } else {
+            this.playerHullBar.setSize(targetPlayerW, 10);
+        }
+        this.prevPlayerHull = combat.playerHull;
 
         const pShieldPct = Math.max(0, combat.playerShield / playerMaxShield);
-        this.playerShieldBar.setSize(barWidth * pShieldPct, 8);
+        tweens.killTweensOf(this.playerShieldBar);
+        tweens.add({
+            targets: this.playerShieldBar,
+            width: barWidth * pShieldPct,
+            duration: 150,
+            ease: 'Linear',
+        });
 
         // Show last 5 log entries
         const recentLog = combat.log.slice(-5).join('\n');
@@ -206,6 +266,25 @@ export class CombatUI extends GameObjects.Container {
         this.resultText.setText(resultMsg);
         this.resultText.setColor('#' + resultColor.toString(16).padStart(6, '0'));
 
+        // Animate result text: scale pop for victory, shake for defeat
+        if (combat.result === 'victory') {
+            this.resultText.setScale(0.5).setAlpha(0);
+            this.scene.tweens.add({
+                targets: this.resultText,
+                scaleX: 1, scaleY: 1, alpha: 1,
+                duration: 400,
+                ease: 'Back.out',
+            });
+        } else if (combat.result === 'defeat') {
+            this.scene.tweens.add({
+                targets: this.resultText,
+                x: this.resultText.x + 6,
+                duration: 60,
+                yoyo: true,
+                repeat: 4,
+            });
+        }
+
         // Continue button
         const scene = this.scene;
         const continueBtn = this.createActionButton(scene, GAME_WIDTH / 2, 620, 'CONTINUE', COLORS.textHighlight, () => {
@@ -215,7 +294,9 @@ export class CombatUI extends GameObjects.Container {
     }
 
     resetForNewCombat(): void {
-        this.resultText.setText('');
+        this.resultText.setText('').setScale(1).setAlpha(1);
+        this.prevEnemyHull = 100;
+        this.prevPlayerHull = 100;
         for (const btn of this.actionButtons) {
             btn.setVisible(true);
         }

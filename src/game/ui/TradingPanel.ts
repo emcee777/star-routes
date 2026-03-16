@@ -9,6 +9,7 @@ import { PlayerState, StarSystemData, MarketListing } from '../types';
 import { COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/constants';
 import { COMMODITY_MAP } from '../config/commodity-data';
 import { TradingSystem } from '../systems/TradingSystem';
+import { AudioManager } from '../audio/AudioManager';
 
 export class TradingPanel extends GameObjects.Container {
     private tradingSystem: TradingSystem;
@@ -202,7 +203,10 @@ export class TradingPanel extends GameObjects.Container {
                 const qty = Math.min(5, listing.supply);
                 const result = this.tradingSystem.buy(player, system, listing.commodityId, qty, gameTime, []);
                 this.showMessage(result.message, result.success);
-                if (result.success && this.onTrade) this.onTrade();
+                if (result.success) {
+                    AudioManager.play('tradeComplete');
+                    if (this.onTrade) this.onTrade();
+                }
             });
             this.listContainer.add(buyBtn);
 
@@ -210,7 +214,10 @@ export class TradingPanel extends GameObjects.Container {
             const buy1Btn = this.createButton(this.listContainer.scene, 460, y, '1', COLORS.positive, () => {
                 const result = this.tradingSystem.buy(player, system, listing.commodityId, 1, gameTime, []);
                 this.showMessage(result.message, result.success);
-                if (result.success && this.onTrade) this.onTrade();
+                if (result.success) {
+                    AudioManager.play('tradeComplete');
+                    if (this.onTrade) this.onTrade();
+                }
             });
             this.listContainer.add(buy1Btn);
         }
@@ -308,14 +315,20 @@ export class TradingPanel extends GameObjects.Container {
                     const sellQty = Math.min(5, cargo.quantity);
                     const result = this.tradingSystem.sell(player, system, cargo.commodityId, sellQty, gameTime, []);
                     this.showMessage(result.message, result.success);
-                    if (result.success && this.onTrade) this.onTrade();
+                    if (result.success) {
+                        AudioManager.play('tradeComplete');
+                        if (this.onTrade) this.onTrade();
+                    }
                 });
                 this.cargoContainer.add(sellBtn);
 
                 const sell1Btn = this.createButton(this.cargoContainer.scene, GAME_WIDTH / 2 + 445, y, '1', COLORS.warning, () => {
                     const result = this.tradingSystem.sell(player, system, cargo.commodityId, 1, gameTime, []);
                     this.showMessage(result.message, result.success);
-                    if (result.success && this.onTrade) this.onTrade();
+                    if (result.success) {
+                        AudioManager.play('tradeComplete');
+                        if (this.onTrade) this.onTrade();
+                    }
                 });
                 this.cargoContainer.add(sell1Btn);
             }

@@ -21,6 +21,7 @@ export class NewGameScene extends Scene {
 
     create(): void {
         this.cameras.main.setBackgroundColor(COLORS.background);
+        this.cameras.main.fadeIn(400, 0, 0, 0);
 
         // Title
         this.add.text(GAME_WIDTH / 2, 40, 'CREATE YOUR CAPTAIN', {
@@ -192,11 +193,18 @@ export class NewGameScene extends Scene {
 
         const name = this.playerName.trim() || 'Captain';
 
-        this.scene.start('StationScene', {
-            newGame: true,
-            playerName: name,
-            ship: playerShip,
-            startingCredits: STARTING_CREDITS,
+        // Warp launch effect: horizontal stretch + white flash → fade to station
+        this.cameras.main.flash(300, 255, 255, 255, false);
+        this.time.delayedCall(200, () => {
+            this.cameras.main.fadeOut(400, 255, 255, 255);
+            this.cameras.main.once('camerafadeoutcomplete', () => {
+                this.scene.start('StationScene', {
+                    newGame: true,
+                    playerName: name,
+                    ship: playerShip,
+                    startingCredits: STARTING_CREDITS,
+                });
+            });
         });
     }
 }

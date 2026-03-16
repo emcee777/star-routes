@@ -1,6 +1,6 @@
 // ============================================================
 // Star Routes - Game Over Scene
-// Ship destroyed. Show final stats.
+// Ship destroyed. Show final stats. Dramatic fade-in entrance.
 // ============================================================
 
 import { Scene } from 'phaser';
@@ -21,13 +21,24 @@ export class GameOver extends Scene {
     create(): void {
         this.cameras.main.setBackgroundColor(0x0a0008);
 
+        // Dramatic slow fade-in from red
+        this.cameras.main.fadeIn(1200, 20, 0, 0);
+
+        // Apply vignette for darkness at edges
+        try {
+            const fx = this.cameras.main.postFX;
+            if (fx) fx.addVignette(0.5, 0.5, 0.5);
+        } catch (_) { /* canvas */ }
+
         // Title
-        this.add.text(GAME_WIDTH / 2, 120, 'SHIP DESTROYED', {
+        const title = this.add.text(GAME_WIDTH / 2, 120, 'SHIP DESTROYED', {
             fontSize: '36px',
             fontFamily: 'monospace',
             fontStyle: 'bold',
             color: '#' + COLORS.negative.toString(16).padStart(6, '0'),
-        }).setOrigin(0.5, 0.5);
+        }).setOrigin(0.5, 0.5).setAlpha(0);
+
+        this.tweens.add({ targets: title, alpha: 1, duration: 1500, delay: 400 });
 
         this.add.text(GAME_WIDTH / 2, 170, 'Your journey among the stars has ended.', {
             fontSize: '14px',
@@ -57,7 +68,7 @@ export class GameOver extends Scene {
             }
         }
 
-        // Try again button
+        // Main Menu button
         const btnY = GAME_HEIGHT - 100;
         const bg = this.add.rectangle(GAME_WIDTH / 2, btnY, 200, 44, COLORS.textHighlight, 0.2);
         bg.setStrokeStyle(2, COLORS.textHighlight, 0.6);
@@ -71,7 +82,10 @@ export class GameOver extends Scene {
 
         bg.setInteractive();
         bg.on('pointerdown', () => {
-            this.scene.start('MainMenu');
+            this.cameras.main.fadeOut(400, 0, 0, 0);
+            this.cameras.main.once('camerafadeoutcomplete', () => {
+                this.scene.start('MainMenu');
+            });
         });
     }
 }

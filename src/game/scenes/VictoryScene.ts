@@ -1,6 +1,7 @@
 // ============================================================
 // Star Routes - Victory Scene
 // Reached trading empire goal. Final stats and celebration.
+// Dramatic white fade-in from warp transition.
 // ============================================================
 
 import { Scene } from 'phaser';
@@ -21,31 +22,55 @@ export class VictoryScene extends Scene {
     create(): void {
         this.cameras.main.setBackgroundColor(0x0a0a1a);
 
-        // Celebration stars
-        for (let i = 0; i < 100; i++) {
+        // Dramatic white flash fade-in (triumphant arrival)
+        this.cameras.main.fadeIn(1000, 255, 255, 255);
+
+        // Built-in bloom for celebration glow
+        try {
+            const fx = this.cameras.main.postFX;
+            if (fx) {
+                fx.addBloom(0xffffff, 1, 1, 1, 0.5);
+                fx.addVignette(0.5, 0.5, 0.25);
+            }
+        } catch (_) { /* canvas */ }
+
+        // Celebration stars — animated twinkle
+        for (let i = 0; i < 120; i++) {
+            const starColor = [COLORS.positive, COLORS.textHighlight, COLORS.warning, 0xffdd44][Math.floor(Math.random() * 4)];
             const star = this.add.circle(
                 Math.random() * GAME_WIDTH,
                 Math.random() * GAME_HEIGHT,
-                1 + Math.random() * 2,
-                [COLORS.positive, COLORS.textHighlight, COLORS.warning, 0xffdd44][Math.floor(Math.random() * 4)],
+                1 + Math.random() * 2.5,
+                starColor,
                 0.3 + Math.random() * 0.5
             );
             this.tweens.add({
                 targets: star,
-                alpha: 0.1,
-                duration: 1000 + Math.random() * 2000,
+                alpha: 0.05 + Math.random() * 0.15,
+                duration: 800 + Math.random() * 2000,
                 yoyo: true,
                 repeat: -1,
+                delay: Math.random() * 1000,
             });
         }
 
-        // Title
-        this.add.text(GAME_WIDTH / 2, 80, 'TRADING EMPIRE', {
+        // Title — fade in with scale pop
+        const title = this.add.text(GAME_WIDTH / 2, 80, 'TRADING EMPIRE', {
             fontSize: '40px',
             fontFamily: 'monospace',
             fontStyle: 'bold',
             color: '#' + COLORS.positive.toString(16).padStart(6, '0'),
-        }).setOrigin(0.5, 0.5);
+        }).setOrigin(0.5, 0.5).setAlpha(0).setScale(0.8);
+
+        this.tweens.add({
+            targets: title,
+            alpha: 1,
+            scaleX: 1,
+            scaleY: 1,
+            duration: 800,
+            delay: 500,
+            ease: 'Back.out',
+        });
 
         this.add.text(GAME_WIDTH / 2, 130, 'You have built a legendary trading empire across the stars.', {
             fontSize: '14px',
@@ -68,7 +93,7 @@ export class VictoryScene extends Scene {
         ];
 
         for (let i = 0; i < goals.length; i++) {
-            this.add.text(GAME_WIDTH / 2, 210 + i * 24, `* ${goals[i]}`, {
+            this.add.text(GAME_WIDTH / 2, 210 + i * 24, `\u2605 ${goals[i]}`, {
                 fontSize: '12px',
                 fontFamily: 'monospace',
                 color: '#' + COLORS.positive.toString(16).padStart(6, '0'),
@@ -106,7 +131,7 @@ export class VictoryScene extends Scene {
             }
         }
 
-        // Play again button
+        // Play again button with fade-out transition
         const btnY = GAME_HEIGHT - 60;
         const bg = this.add.rectangle(GAME_WIDTH / 2, btnY, 200, 44, COLORS.positive, 0.2);
         bg.setStrokeStyle(2, COLORS.positive, 0.6);
@@ -120,7 +145,10 @@ export class VictoryScene extends Scene {
 
         bg.setInteractive();
         bg.on('pointerdown', () => {
-            this.scene.start('MainMenu');
+            this.cameras.main.fadeOut(400, 0, 0, 0);
+            this.cameras.main.once('camerafadeoutcomplete', () => {
+                this.scene.start('MainMenu');
+            });
         });
     }
 }

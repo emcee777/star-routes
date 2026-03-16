@@ -8,6 +8,7 @@ import { PlayerState, CrewMemberData } from '../types';
 import { COLORS, GAME_WIDTH, MAX_CREW_SIZE } from '../config/constants';
 import { CrewManager } from '../systems/CrewManager';
 import { POSITIVE_TRAITS } from '../config/crew-data';
+import { AudioManager } from '../audio/AudioManager';
 
 export class CrewPanel extends GameObjects.Container {
     private crewManager: CrewManager;
@@ -193,6 +194,7 @@ export class CrewPanel extends GameObjects.Container {
                 const result = this.crewManager.hire(player, member, [], gameTime);
                 this.showMessage(result.message, result.success);
                 if (result.success) {
+                    AudioManager.play('crewHire');
                     // Remove from available
                     this.availableCrew = this.availableCrew.filter(c => c.id !== member.id);
                     if (this.onUpdate) this.onUpdate();

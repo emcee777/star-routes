@@ -1,7 +1,7 @@
 // ============================================================
 // Star Routes - Main Menu Scene
 // Title with glow, multi-layer starfield, nebula background,
-// shooting stars, animated buttons
+// shooting stars, animated buttons, mouse parallax, built-in FX
 // ============================================================
 
 import { Scene, GameObjects } from 'phaser';
@@ -11,16 +11,27 @@ import { SaveSystem } from '../systems/SaveSystem';
 interface StarParticle {
     x: number;
     y: number;
+    baseX: number;
+    baseY: number;
     size: number;
     baseAlpha: number;
     speed: number;
     color: number;
     graphic: GameObjects.Arc;
     layer: number;
+    parallaxFactor: number;
+}
+
+interface NebulaPatch {
+    graphic: GameObjects.Arc;
+    baseX: number;
+    baseY: number;
+    parallaxFactor: number;
 }
 
 export class MainMenu extends Scene {
     private stars: StarParticle[] = [];
+    private nebulae: NebulaPatch[] = [];
     private saveSystem: SaveSystem;
     private titleGlow!: GameObjects.Text;
     private shootingStarTimer: number = 0;
@@ -30,6 +41,8 @@ export class MainMenu extends Scene {
         angle: number; speed: number;
         life: number; maxLife: number;
     }> = [];
+    private mouseX: number = GAME_WIDTH / 2;
+    private mouseY: number = GAME_HEIGHT / 2;
 
     constructor() {
         super('MainMenu');
@@ -39,20 +52,24 @@ export class MainMenu extends Scene {
     create(): void {
         this.cameras.main.setBackgroundColor(COLORS.background);
 
-        // Apply bloom if available
-        const renderer = this.renderer;
-        if (renderer && 'pipelines' in renderer) {
-            try {
-                this.cameras.main.setPostPipeline('BloomPipeline');
-            } catch (_e) {
-                // WebGL pipeline not available (Canvas mode)
+        // Phaser built-in bloom + vignette (WebGL only)
+        try {
+            const fx = this.cameras.main.postFX;
+            if (fx) {
+                fx.addBloom(0xffffff, 1, 1, 1, 0.35);
+                fx.addVignette(0.5, 0.5, 0.35);
             }
+        } catch (_e) {
+            // Canvas fallback — no post FX
         }
 
-        // Create ambient star background (3 layers)
+        // Fade in from black
+        this.cameras.main.fadeIn(600, 0, 0, 0);
+
+        // Create ambient star background (3 layers) — behind nebulae
         this.createStarfield();
 
-        // Nebula clouds behind title
+        // Richer nebula clouds
         this.createMenuNebulae();
 
         // Title glow (behind)
@@ -87,13 +104,19 @@ export class MainMenu extends Scene {
 
         // New Game button
         this.createMenuButton(GAME_WIDTH / 2, 320, 'NEW GAME', COLORS.positive, () => {
-            this.scene.start('NewGame');
+            this.cameras.main.fadeOut(300, 0, 0, 0);
+            this.cameras.main.once('camerafadeoutcomplete', () => {
+                this.scene.start('NewGame');
+            });
         });
 
         // Continue button (if save exists)
         if (this.saveSystem.hasSave('auto')) {
             this.createMenuButton(GAME_WIDTH / 2, 385, 'CONTINUE', COLORS.textHighlight, () => {
-                this.scene.start('StationScene', { loadSave: true });
+                this.cameras.main.fadeOut(300, 0, 0, 0);
+                this.cameras.main.once('camerafadeoutcomplete', () => {
+                    this.scene.start('StationScene', { loadSave: true });
+                });
             });
         }
 
@@ -111,13 +134,19 @@ export class MainMenu extends Scene {
             fontFamily: 'monospace',
             color: '#' + COLORS.textSecondary.toString(16).padStart(6, '0'),
         }).setOrigin(1, 0.5).setAlpha(0.5);
+
+        // Track mouse for parallax
+        this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+            this.mouseX = pointer.x;
+            this.mouseY = pointer.y;
+        });
     }
 
     private createStarfield(): void {
         const layerConfigs = [
-            { count: 80, minSize: 0.3, maxSize: 1.0, minAlpha: 0.1, maxAlpha: 0.3 },
-            { count: 50, minSize: 0.5, maxSize: 1.5, minAlpha: 0.2, maxAlpha: 0.5 },
-            { count: 25, minSize: 1.0, maxSize: 2.5, minAlpha: 0.3, maxAlpha: 0.8 },
+            { count: 80, minSize: 0.3, maxSize: 1.0, minAlpha: 0.1, maxAlpha: 0.3, parallax: 0.005 },
+            { count: 50, minSize: 0.5, maxSize: 1.5, minAlpha: 0.2, maxAlpha: 0.5, parallax: 0.010 },
+            { count: 25, minSize: 1.0, maxSize: 2.5, minAlpha: 0.3, maxAlpha: 0.8, parallax: 0.018 },
         ];
 
         const starColors = [0xffffff, 0xaabbff, 0xffddaa, 0xffaaaa, 0xccddff];
@@ -134,21 +163,31 @@ export class MainMenu extends Scene {
 
                 const graphic = this.add.circle(x, y, size, color, alpha);
 
-                this.stars.push({ x, y, size, baseAlpha: alpha, speed, color, graphic, layer });
+                // Add preFX glow on the largest stars (layer 2)
+                if (layer === 2 && size > 1.8) {
+                    try {
+                        graphic.preFX?.addGlow(color, 4, 0, false, 0.1, 8);
+                    } catch (_) { /* canvas fallback */ }
+                }
+
+                this.stars.push({ x, y, baseX: x, baseY: y, size, baseAlpha: alpha, speed, color, graphic, layer, parallaxFactor: cfg.parallax });
             }
         }
     }
 
     private createMenuNebulae(): void {
-        const colors = [0x2233aa, 0x442266, 0x224466];
-        for (let i = 0; i < 3; i++) {
-            this.add.circle(
-                200 + Math.random() * (GAME_WIDTH - 400),
-                100 + Math.random() * (GAME_HEIGHT - 200),
-                100 + Math.random() * 80,
-                colors[i],
-                0.02 + Math.random() * 0.02
-            );
+        // Larger, richer nebulae with varied colors
+        const nebulaDefs = [
+            { color: 0x2233aa, x: 150,            y: 180,           r: 180, alpha: 0.03, parallax: 0.003 },
+            { color: 0x442266, x: GAME_WIDTH-200,  y: GAME_HEIGHT/2, r: 200, alpha: 0.025,parallax: 0.004 },
+            { color: 0x224466, x: GAME_WIDTH/2,    y: GAME_HEIGHT-120,r:160, alpha: 0.03, parallax: 0.002 },
+            { color: 0x334422, x: GAME_WIDTH*0.7,  y: 100,           r: 140, alpha: 0.02, parallax: 0.005 },
+            { color: 0x553311, x: 300,             y: GAME_HEIGHT-180,r:120, alpha: 0.025,parallax: 0.003 },
+        ];
+
+        for (const def of nebulaDefs) {
+            const graphic = this.add.circle(def.x, def.y, def.r, def.color, def.alpha);
+            this.nebulae.push({ graphic, baseX: def.x, baseY: def.y, parallaxFactor: def.parallax });
         }
     }
 
@@ -188,12 +227,29 @@ export class MainMenu extends Scene {
     update(_time: number, delta: number): void {
         const t = _time * 0.001;
 
-        // Twinkle stars with multi-frequency noise
+        // Compute mouse offset from center (clamped to ±2px shift per parallax unit)
+        const dx = (this.mouseX - GAME_WIDTH / 2);
+        const dy = (this.mouseY - GAME_HEIGHT / 2);
+
+        // Twinkle + parallax for stars
         for (const star of this.stars) {
             const twinkle = star.baseAlpha +
                 Math.sin(star.speed * t + star.x * 0.05) * star.baseAlpha * 0.25 +
                 Math.sin(star.speed * t * 2.3 + star.y * 0.07) * star.baseAlpha * 0.1;
             star.graphic.setAlpha(Math.max(0.05, Math.min(0.95, twinkle)));
+
+            // Subtle parallax: near layers shift more
+            const px = star.baseX + dx * star.parallaxFactor;
+            const py = star.baseY + dy * star.parallaxFactor;
+            star.graphic.setPosition(px, py);
+        }
+
+        // Nebula parallax
+        for (const neb of this.nebulae) {
+            neb.graphic.setPosition(
+                neb.baseX + dx * neb.parallaxFactor,
+                neb.baseY + dy * neb.parallaxFactor
+            );
         }
 
         // Title glow pulse
@@ -202,9 +258,9 @@ export class MainMenu extends Scene {
             this.titleGlow.setAlpha(glowAlpha);
         }
 
-        // Shooting stars
+        // Shooting stars — spawn every 5-10 seconds
         this.shootingStarTimer += delta * 0.001;
-        if (this.shootingStarTimer > 8 + Math.random() * 7) {
+        if (this.shootingStarTimer > 5 + Math.random() * 5) {
             this.shootingStarTimer = 0;
             this.spawnShootingStar();
         }
@@ -227,12 +283,15 @@ export class MainMenu extends Scene {
             star.y += Math.sin(star.angle) * star.speed * delta * 0.001;
 
             star.graphic.clear();
-            star.graphic.lineStyle(1, 0xffffff, alpha * 0.7);
+            star.graphic.lineStyle(1.5, 0xffffff, alpha * 0.85);
             star.graphic.lineBetween(
                 star.x, star.y,
                 star.x - Math.cos(star.angle) * tailLength,
                 star.y - Math.sin(star.angle) * tailLength
             );
+            // Tip glow
+            star.graphic.fillStyle(0xffffff, alpha * 0.5);
+            star.graphic.fillCircle(star.x, star.y, 1.5);
         }
     }
 
@@ -240,8 +299,8 @@ export class MainMenu extends Scene {
         const graphic = this.add.graphics();
         this.shootingStars.push({
             graphic,
-            x: Math.random() * GAME_WIDTH * 0.6,
-            y: 20 + Math.random() * GAME_HEIGHT * 0.4,
+            x: Math.random() * GAME_WIDTH * 0.7,
+            y: 10 + Math.random() * GAME_HEIGHT * 0.45,
             angle: 0.2 + Math.random() * 0.6,
             speed: 250 + Math.random() * 200,
             life: 0,

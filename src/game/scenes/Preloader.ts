@@ -13,6 +13,7 @@ export class Preloader extends Scene {
 
     create(): void {
         this.cameras.main.setBackgroundColor(COLORS.background);
+        this.cameras.main.fadeIn(300, 0, 0, 0);
 
         // Draw loading text
         this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 30, 'STAR ROUTES', {

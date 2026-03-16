@@ -27,6 +27,7 @@ import { GalaxyMapUI } from '../ui/GalaxyMapUI';
 import { TravelPanel } from '../ui/TravelPanel';
 import { LogUI } from '../ui/LogUI';
 import { FACTION_MAP } from '../config/faction-data';
+import { AudioManager } from '../audio/AudioManager';
 
 export class StationScene extends Scene {
     // Systems
@@ -164,15 +165,19 @@ export class StationScene extends Scene {
     create(): void {
         this.cameras.main.setBackgroundColor(COLORS.background);
 
-        // Apply bloom post-processing if available
-        const renderer = this.renderer;
-        if (renderer && 'pipelines' in renderer) {
-            try {
-                this.cameras.main.setPostPipeline('BloomPipeline');
-            } catch (_e) {
-                // WebGL pipeline not available (Canvas mode)
+        // Apply built-in bloom + vignette (Phaser 3.60+ postFX)
+        try {
+            const fx = this.cameras.main.postFX;
+            if (fx) {
+                fx.addBloom(0xffffff, 1, 1, 1, 0.35);
+                fx.addVignette(0.5, 0.5, 0.3);
             }
+        } catch (_e) {
+            // Canvas fallback — no post FX
         }
+
+        // Fade in from black on scene enter
+        this.cameras.main.fadeIn(400, 0, 0, 0);
 
         const currentSystem = this.getCurrentSystem();
 
@@ -387,10 +392,14 @@ export class StationScene extends Scene {
         this.timeSystem.saveToState(this.gameState);
         this.gameState.economyHistory = this.economyEngine.economyHistory;
 
-        // Switch to travel scene
-        this.scene.start('TravelScene', {
-            gameState: this.gameState,
-            route,
+        // Warp sound + fade transition to travel scene
+        AudioManager.play('warpJump');
+        this.cameras.main.fadeOut(400, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => {
+            this.scene.start('TravelScene', {
+                gameState: this.gameState,
+                route,
+            });
         });
     }
 

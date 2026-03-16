@@ -125,8 +125,17 @@ export class TravelScene extends Scene {
     create(): void {
         this.cameras.main.setBackgroundColor(COLORS.background);
 
-        // Fade in (warp arrival effect)
+        // Fade in (warp arrival effect: from white = hyperspace exit)
         this.cameras.main.fadeIn(500, 255, 255, 255);
+
+        // Phaser built-in FX: subtle bloom for engine glow, vignette for depth
+        try {
+            const fx = this.cameras.main.postFX;
+            if (fx) {
+                fx.addBloom(0xffffff, 1, 1, 1, 0.25);
+                fx.addVignette(0.5, 0.5, 0.4);
+            }
+        } catch (_e) { /* canvas fallback */ }
 
         // Engine thrust audio
         AudioManager.play('engineThrust');

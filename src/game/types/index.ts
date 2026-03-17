@@ -394,7 +394,9 @@ export interface CombatState {
     playerHull: number;
     playerShield: number;
     enemyHull: number;
+    enemyMaxHull: number;
     enemyShield: number;
+    enemyMaxShield: number;
     enemyName: string;
     enemyType: string;
     round: number;

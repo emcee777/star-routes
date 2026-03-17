@@ -4,7 +4,7 @@
 // ============================================================
 
 import { Scene, GameObjects } from 'phaser';
-import { PlayerState } from '../types';
+import { PlayerState, LogEntry } from '../types';
 import { COLORS, GAME_WIDTH } from '../config/constants';
 import { ShipManager } from '../systems/ShipManager';
 import { SHIP_MAP } from '../config/ship-data';
@@ -15,6 +15,7 @@ export class ShipPanel extends GameObjects.Container {
     private contentContainer: GameObjects.Container;
     private messageText: GameObjects.Text;
     private onUpdate: (() => void) | null = null;
+    private eventLog: LogEntry[] = [];
 
     constructor(scene: Scene, shipManager: ShipManager) {
         super(scene, 0, 0);
@@ -36,6 +37,10 @@ export class ShipPanel extends GameObjects.Container {
 
     setUpdateHandler(handler: () => void): void {
         this.onUpdate = handler;
+    }
+
+    setEventLog(log: LogEntry[]): void {
+        this.eventLog = log;
     }
 
     updateDisplay(player: PlayerState, gameTime: number): void {
@@ -99,7 +104,7 @@ export class ShipPanel extends GameObjects.Container {
 
                 // Remove button
                 const removeBtn = this.createButton(scene, 300, y, 'REMOVE', COLORS.negative, () => {
-                    const result = this.shipManager.removeModule(player, i, [], gameTime);
+                    const result = this.shipManager.removeModule(player, i, this.eventLog, gameTime);
                     this.showMessage(result.message, result.success);
                     if (result.success && this.onUpdate) this.onUpdate();
                 });
@@ -132,7 +137,7 @@ export class ShipPanel extends GameObjects.Container {
             this.contentContainer.add(priceText);
 
             const buyBtn = this.createButton(scene, GAME_WIDTH / 2 + 350, y, 'BUY', COLORS.positive, () => {
-                const result = this.shipManager.installModule(player, mod.id, [], gameTime);
+                const result = this.shipManager.installModule(player, mod.id, this.eventLog, gameTime);
                 this.showMessage(result.message, result.success);
                 if (result.success && this.onUpdate) this.onUpdate();
             });
@@ -169,7 +174,7 @@ export class ShipPanel extends GameObjects.Container {
                 this.contentContainer.add(priceText);
 
                 const buyShipBtn = this.createButton(scene, 520, y, 'BUY', COLORS.positive, () => {
-                    const result = this.shipManager.buyShip(player, s.id, s.name, [], gameTime);
+                    const result = this.shipManager.buyShip(player, s.id, s.name, this.eventLog, gameTime);
                     this.showMessage(result.message, result.success);
                     if (result.success && this.onUpdate) this.onUpdate();
                 });

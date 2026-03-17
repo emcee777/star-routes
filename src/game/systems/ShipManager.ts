@@ -9,6 +9,7 @@ import { MODULE_MAP, MODULES } from '../config/module-data';
 import {
     REPAIR_COST_PER_HULL, REFUEL_COST_PER_UNIT, MAX_MODULES_PER_TYPE
 } from '../config/constants';
+import { COMMODITY_MAP } from '../config/commodity-data';
 
 export class ShipManager {
     /** Create a new player ship from a ship definition */
@@ -276,10 +277,11 @@ export class ShipManager {
             return { success: false, message: 'Failed to create ship.' };
         }
 
-        // Check cargo fits
+        // Check cargo fits (using actual commodity weights)
         let cargoWeight = 0;
         for (const item of player.ship.cargo) {
-            cargoWeight += item.quantity; // simplified
+            const commodity = COMMODITY_MAP.get(item.commodityId);
+            cargoWeight += (commodity?.weight ?? 1) * item.quantity;
         }
         if (cargoWeight > newShip.cargoCapacity) {
             return {

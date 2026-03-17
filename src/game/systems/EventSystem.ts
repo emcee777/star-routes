@@ -10,6 +10,7 @@ import {
 import { EVENTS, EVENT_MAP } from '../config/event-data';
 import { DANGER_ENCOUNTER_BASE } from '../config/constants';
 import { CrewManager } from './CrewManager';
+import { COMMODITY_MAP } from '../config/commodity-data';
 
 export class EventSystem {
     private crewManager: CrewManager;
@@ -189,23 +190,53 @@ export class EventSystem {
             }
         }
 
-        // Add cargo
+        // Add cargo (with capacity check)
         if (effects.addCargo) {
-            const existing = player.ship.cargo.find(c => c.commodityId === effects.addCargo!.commodityId);
-            if (existing) {
-                existing.quantity += effects.addCargo.quantity;
+            const commodity = COMMODITY_MAP.get(effects.addCargo.commodityId);
+
+            // Calculate current cargo weight
+            let currentWeight = 0;
+            for (const c of player.ship.cargo) {
+                const cDef = COMMODITY_MAP.get(c.commodityId);
+                currentWeight += (cDef?.weight ?? 1) * c.quantity;
+            }
+
+            const available = player.ship.cargoCapacity - currentWeight;
+            const fitsQty = commodity ? Math.floor(available / commodity.weight) : Math.floor(available);
+            const addQty = Math.min(effects.addCargo.quantity, Math.max(0, fitsQty));
+
+            if (addQty > 0) {
+                const existing = player.ship.cargo.find(c => c.commodityId === effects.addCargo!.commodityId);
+                if (existing) {
+                    existing.quantity += addQty;
+                } else {
+                    player.ship.cargo.push({
+                        commodityId: effects.addCargo.commodityId,
+                        quantity: addQty,
+                        purchasePrice: 0, // found, not bought
+                    });
+                }
+
+                if (addQty < effects.addCargo.quantity) {
+                    log.push({
+                        time: gameTime,
+                        type: 'event',
+                        message: `Gained ${addQty}x ${effects.addCargo.commodityId} (${effects.addCargo.quantity - addQty} discarded — cargo full).`,
+                    });
+                } else {
+                    log.push({
+                        time: gameTime,
+                        type: 'event',
+                        message: `Gained ${addQty}x ${effects.addCargo.commodityId}.`,
+                    });
+                }
             } else {
-                player.ship.cargo.push({
-                    commodityId: effects.addCargo.commodityId,
-                    quantity: effects.addCargo.quantity,
-                    purchasePrice: 0, // found, not bought
+                log.push({
+                    time: gameTime,
+                    type: 'event',
+                    message: `Found ${effects.addCargo.quantity}x ${effects.addCargo.commodityId} but cargo is full!`,
                 });
             }
-            log.push({
-                time: gameTime,
-                type: 'event',
-                message: `Gained ${effects.addCargo.quantity}x ${effects.addCargo.commodityId}.`,
-            });
         }
 
         // Remove cargo

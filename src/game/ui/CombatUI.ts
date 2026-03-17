@@ -147,7 +147,7 @@ export class CombatUI extends GameObjects.Container {
         this.roundText.setText(`Round ${combat.round}`);
 
         // --- Enemy bars with animated transition ---
-        const eHullPct = Math.max(0, combat.enemyHull / 100);
+        const eHullPct = Math.max(0, combat.enemyHull / combat.enemyMaxHull);
         const targetEnemyW = barWidth * eHullPct;
 
         // Flash enemy hull bar orange when hit
@@ -168,7 +168,7 @@ export class CombatUI extends GameObjects.Container {
         }
         this.prevEnemyHull = combat.enemyHull;
 
-        const eShieldPct = Math.max(0, combat.enemyShield / 50);
+        const eShieldPct = Math.max(0, combat.enemyShield / combat.enemyMaxShield);
         tweens.killTweensOf(this.enemyShieldBar);
         tweens.add({
             targets: this.enemyShieldBar,

@@ -9,6 +9,7 @@ import {
     WEAPON_BASE_DAMAGE, SHIELD_REGEN_PER_ROUND, PIRATE_STRENGTH_SCALING
 } from '../config/constants';
 import { MODULE_MAP } from '../config/module-data';
+import { COMMODITY_MAP } from '../config/commodity-data';
 
 export type CombatAction = 'attack' | 'flee' | 'negotiate' | 'defend';
 
@@ -49,11 +50,16 @@ export class CombatSystem {
         );
         const enemy = enemyTypes[typeIdx];
 
+        const enemyHull = Math.round(baseEnemyHull * enemy.hullMod);
+        const enemyShield = Math.round(baseEnemyShield * enemy.shieldMod);
+
         return {
             playerHull: ship.hull,
             playerShield: ship.shield,
-            enemyHull: Math.round(baseEnemyHull * enemy.hullMod),
-            enemyShield: Math.round(baseEnemyShield * enemy.shieldMod),
+            enemyHull,
+            enemyMaxHull: enemyHull,
+            enemyShield,
+            enemyMaxShield: enemyShield,
             enemyName: enemy.name,
             enemyType: enemy.type,
             round: 0,
@@ -171,7 +177,7 @@ export class CombatSystem {
 
     private processEnemyAttack(state: CombatState): void {
         // Enemy damage scales with their remaining hull (represents crew/systems)
-        const healthFactor = state.enemyHull / 100;
+        const healthFactor = state.enemyHull / state.enemyMaxHull;
         const baseDmg = 8 + Math.round(12 * healthFactor);
         const damage = Math.max(3, baseDmg + Math.round((Math.random() - 0.3) * 6));
 
@@ -189,8 +195,8 @@ export class CombatSystem {
         }
 
         // Shield regen for enemy
-        if (state.enemyShield < 30) {
-            state.enemyShield = Math.min(30, state.enemyShield + SHIELD_REGEN_PER_ROUND);
+        if (state.enemyShield < state.enemyMaxShield) {
+            state.enemyShield = Math.min(state.enemyMaxShield, state.enemyShield + SHIELD_REGEN_PER_ROUND);
         }
     }
 
@@ -254,11 +260,14 @@ export class CombatSystem {
 
         let currentWeight = 0;
         for (const item of cargo) {
-            currentWeight += item.quantity; // simplified weight calculation
+            const commodity = COMMODITY_MAP.get(item.commodityId);
+            currentWeight += (commodity?.weight ?? 1) * item.quantity;
         }
 
         for (const item of loot.cargo) {
-            if (currentWeight + item.quantity <= cargoCapacity) {
+            const commodity = COMMODITY_MAP.get(item.commodityId);
+            const itemWeight = (commodity?.weight ?? 1) * item.quantity;
+            if (currentWeight + itemWeight <= cargoCapacity) {
                 // Add to existing stack or create new
                 const existing = cargo.find(c => c.commodityId === item.commodityId);
                 if (existing) {
@@ -267,7 +276,7 @@ export class CombatSystem {
                     cargo.push({ ...item });
                 }
                 cargoGained.push(item);
-                currentWeight += item.quantity;
+                currentWeight += itemWeight;
             } else {
                 cargoDropped.push(item);
             }

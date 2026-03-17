@@ -5,7 +5,7 @@
 // ============================================================
 
 import { Scene, GameObjects } from 'phaser';
-import { PlayerState, StarSystemData, MarketListing } from '../types';
+import { PlayerState, StarSystemData, MarketListing, LogEntry } from '../types';
 import { COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/constants';
 import { COMMODITY_MAP } from '../config/commodity-data';
 import { TradingSystem } from '../systems/TradingSystem';
@@ -18,6 +18,7 @@ export class TradingPanel extends GameObjects.Container {
     private messageText: GameObjects.Text;
     private onTrade: (() => void) | null = null;
     private messageTimer: Phaser.Time.TimerEvent | null = null;
+    private eventLog: LogEntry[] = [];
 
     constructor(scene: Scene, tradingSystem: TradingSystem) {
         super(scene, 0, 0);
@@ -91,6 +92,10 @@ export class TradingPanel extends GameObjects.Container {
 
     setTradeHandler(handler: () => void): void {
         this.onTrade = handler;
+    }
+
+    setEventLog(log: LogEntry[]): void {
+        this.eventLog = log;
     }
 
     updateTradingDisplay(player: PlayerState, system: StarSystemData, gameTime: number): void {
@@ -201,7 +206,7 @@ export class TradingPanel extends GameObjects.Container {
             // Buy button
             const buyBtn = this.createButton(this.listContainer.scene, 420, y, 'BUY', COLORS.positive, () => {
                 const qty = Math.min(5, listing.supply);
-                const result = this.tradingSystem.buy(player, system, listing.commodityId, qty, gameTime, []);
+                const result = this.tradingSystem.buy(player, system, listing.commodityId, qty, gameTime, this.eventLog);
                 this.showMessage(result.message, result.success);
                 if (result.success) {
                     AudioManager.play('tradeComplete');
@@ -212,7 +217,7 @@ export class TradingPanel extends GameObjects.Container {
 
             // Buy 1 button
             const buy1Btn = this.createButton(this.listContainer.scene, 460, y, '1', COLORS.positive, () => {
-                const result = this.tradingSystem.buy(player, system, listing.commodityId, 1, gameTime, []);
+                const result = this.tradingSystem.buy(player, system, listing.commodityId, 1, gameTime, this.eventLog);
                 this.showMessage(result.message, result.success);
                 if (result.success) {
                     AudioManager.play('tradeComplete');
@@ -313,7 +318,7 @@ export class TradingPanel extends GameObjects.Container {
             if (listing) {
                 const sellBtn = this.createButton(this.cargoContainer.scene, GAME_WIDTH / 2 + 400, y, 'SELL', COLORS.warning, () => {
                     const sellQty = Math.min(5, cargo.quantity);
-                    const result = this.tradingSystem.sell(player, system, cargo.commodityId, sellQty, gameTime, []);
+                    const result = this.tradingSystem.sell(player, system, cargo.commodityId, sellQty, gameTime, this.eventLog);
                     this.showMessage(result.message, result.success);
                     if (result.success) {
                         AudioManager.play('tradeComplete');
@@ -323,7 +328,7 @@ export class TradingPanel extends GameObjects.Container {
                 this.cargoContainer.add(sellBtn);
 
                 const sell1Btn = this.createButton(this.cargoContainer.scene, GAME_WIDTH / 2 + 445, y, '1', COLORS.warning, () => {
-                    const result = this.tradingSystem.sell(player, system, cargo.commodityId, 1, gameTime, []);
+                    const result = this.tradingSystem.sell(player, system, cargo.commodityId, 1, gameTime, this.eventLog);
                     this.showMessage(result.message, result.success);
                     if (result.success) {
                         AudioManager.play('tradeComplete');

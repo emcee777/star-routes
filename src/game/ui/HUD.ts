@@ -9,6 +9,7 @@ import { PlayerState } from '../types';
 import { COLORS, GAME_WIDTH } from '../config/constants';
 import { TimeSystem } from '../systems/TimeSystem';
 import { AudioManager } from '../audio/AudioManager';
+import { COMMODITY_MAP } from '../config/commodity-data';
 
 export class HUD extends GameObjects.Container {
     private creditsText: GameObjects.Text;
@@ -173,7 +174,10 @@ export class HUD extends GameObjects.Container {
 
         this.creditsText.setText(`Credits: ${Math.round(this.displayedCredits).toLocaleString()}`);
 
-        const cargoUsed = player.ship.cargo.reduce((sum, c) => sum + c.quantity, 0);
+        const cargoUsed = player.ship.cargo.reduce((sum, c) => {
+            const commodity = COMMODITY_MAP.get(c.commodityId);
+            return sum + (commodity?.weight ?? 1) * c.quantity;
+        }, 0);
         const cargoRatio = cargoUsed / player.ship.cargoCapacity;
         this.cargoText.setText(`Cargo: ${cargoUsed}/${player.ship.cargoCapacity}`);
 

@@ -72,10 +72,10 @@ export class StationScene extends Scene {
     }): void {
         // Initialize all systems
         this.economyEngine = new EconomyEngine();
-        this.tradingSystem = new TradingSystem(this.economyEngine);
+        this.reputationSystem = new ReputationSystem();
+        this.tradingSystem = new TradingSystem(this.economyEngine, this.reputationSystem);
         this.navSystem = new NavigationSystem();
         this.crewManager = new CrewManager();
-        this.reputationSystem = new ReputationSystem();
         this.shipManager = new ShipManager();
         this.saveSystem = new SaveSystem();
         this.timeSystem = new TimeSystem();
@@ -187,8 +187,11 @@ export class StationScene extends Scene {
         this.logUI = new LogUI(this);
 
         this.tradingPanel = new TradingPanel(this, this.tradingSystem);
+        this.tradingPanel.setEventLog(this.gameState.eventLog);
         this.shipPanel = new ShipPanel(this, this.shipManager);
+        this.shipPanel.setEventLog(this.gameState.eventLog);
         this.crewPanel = new CrewPanel(this, this.crewManager);
+        this.crewPanel.setEventLog(this.gameState.eventLog);
         this.galaxyMap = new GalaxyMapUI(this, this.galaxy);
         this.travelPanel = new TravelPanel(this, this.navSystem);
 

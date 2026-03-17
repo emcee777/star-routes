@@ -9,6 +9,7 @@ import {
 import { COMMODITY_MAP } from '../config/commodity-data';
 import { TRADER_SELL_TAX } from '../config/constants';
 import { EconomyEngine } from './EconomyEngine';
+import { ReputationSystem } from './ReputationSystem';
 
 export interface TradeResult {
     success: boolean;
@@ -19,9 +20,11 @@ export interface TradeResult {
 
 export class TradingSystem {
     private economyEngine: EconomyEngine;
+    private reputationSystem: ReputationSystem | null;
 
-    constructor(economyEngine: EconomyEngine) {
+    constructor(economyEngine: EconomyEngine, reputationSystem?: ReputationSystem) {
         this.economyEngine = economyEngine;
+        this.reputationSystem = reputationSystem ?? null;
     }
 
     /** Buy a commodity from the current system's market */
@@ -51,9 +54,14 @@ export class TradingSystem {
             return { success: false, message: `Only ${listing.supply} units available.`, creditsChange: 0 };
         }
 
-        const totalCost = listing.price * quantity;
+        // Apply reputation price modifier
+        const repMod = this.reputationSystem
+            ? this.reputationSystem.getPriceModifier(player, system.factionId)
+            : { buy: 1.0, sell: 1.0 };
+        const effectiveBuyPrice = Math.round(listing.price * repMod.buy);
+        const totalCost = effectiveBuyPrice * quantity;
         if (totalCost > player.credits) {
-            const affordable = Math.floor(player.credits / listing.price);
+            const affordable = Math.floor(player.credits / effectiveBuyPrice);
             return {
                 success: false,
                 message: `Not enough credits. Can afford ${affordable} units.`,
@@ -83,14 +91,14 @@ export class TradingSystem {
             // Average purchase price
             const totalQty = existing.quantity + quantity;
             existing.purchasePrice = Math.round(
-                (existing.purchasePrice * existing.quantity + listing.price * quantity) / totalQty
+                (existing.purchasePrice * existing.quantity + effectiveBuyPrice * quantity) / totalQty
             );
             existing.quantity = totalQty;
         } else {
             player.ship.cargo.push({
                 commodityId,
                 quantity,
-                purchasePrice: listing.price,
+                purchasePrice: effectiveBuyPrice,
             });
         }
 
@@ -140,8 +148,14 @@ export class TradingSystem {
             };
         }
 
+        // Apply reputation price modifier
+        const repMod = this.reputationSystem
+            ? this.reputationSystem.getPriceModifier(player, system.factionId)
+            : { buy: 1.0, sell: 1.0 };
+        const effectiveSellPrice = Math.round(listing.price * repMod.sell);
+
         // Calculate revenue with tax
-        const grossRevenue = listing.price * quantity;
+        const grossRevenue = effectiveSellPrice * quantity;
         const tax = Math.round(grossRevenue * TRADER_SELL_TAX);
         const netRevenue = grossRevenue - tax;
         const profit = netRevenue - (cargo.purchasePrice * quantity);

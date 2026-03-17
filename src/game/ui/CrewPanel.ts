@@ -4,7 +4,7 @@
 // ============================================================
 
 import { Scene, GameObjects } from 'phaser';
-import { PlayerState, CrewMemberData } from '../types';
+import { PlayerState, CrewMemberData, LogEntry } from '../types';
 import { COLORS, GAME_WIDTH, MAX_CREW_SIZE } from '../config/constants';
 import { CrewManager } from '../systems/CrewManager';
 import { POSITIVE_TRAITS } from '../config/crew-data';
@@ -16,6 +16,7 @@ export class CrewPanel extends GameObjects.Container {
     private messageText: GameObjects.Text;
     private availableCrew: CrewMemberData[] = [];
     private onUpdate: (() => void) | null = null;
+    private eventLog: LogEntry[] = [];
 
     constructor(scene: Scene, crewManager: CrewManager) {
         super(scene, 0, 0);
@@ -41,6 +42,10 @@ export class CrewPanel extends GameObjects.Container {
 
     setAvailableCrew(crew: CrewMemberData[]): void {
         this.availableCrew = crew;
+    }
+
+    setEventLog(log: LogEntry[]): void {
+        this.eventLog = log;
     }
 
     updateDisplay(player: PlayerState, gameTime: number): void {
@@ -175,7 +180,7 @@ export class CrewPanel extends GameObjects.Container {
 
             // Fire button
             const fireBtn = this.createButton(scene, baseX + 410, y + 15, 'FIRE', COLORS.negative, () => {
-                const result = this.crewManager.fire(player, member.id, [], gameTime);
+                const result = this.crewManager.fire(player, member.id, this.eventLog, gameTime);
                 this.showMessage(result.message, result.success);
                 if (result.success && this.onUpdate) this.onUpdate();
             });
@@ -191,7 +196,7 @@ export class CrewPanel extends GameObjects.Container {
 
             // Hire button
             const hireBtn = this.createButton(scene, baseX + 410, y + 15, 'HIRE', COLORS.positive, () => {
-                const result = this.crewManager.hire(player, member, [], gameTime);
+                const result = this.crewManager.hire(player, member, this.eventLog, gameTime);
                 this.showMessage(result.message, result.success);
                 if (result.success) {
                     AudioManager.play('crewHire');

@@ -17,7 +17,7 @@ const phasermsg = () => {
 }   
 
 export default defineConfig({
-    base: './',
+    base: '/star-routes/',
     logLevel: 'warning',
     build: {
         rollupOptions: {
